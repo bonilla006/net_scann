@@ -1,4 +1,5 @@
 import sys
+from collections import defaultdict
 import pyshark
 #import scapy.all as scapy
 from mac_vendor_lookup import MacLookup
@@ -22,18 +23,10 @@ def main():
     print("============\n")
 
     #pasas el pcap para analizarlo
-    net = net_analisis(path)
-    info = []
-    for dis in net:
-        #print(dis)
-        encontrado, vendor = find_vendor(dis[1])
-        if encontrado:
-            info.append((dis[0],dis[1],vendor,dis[2]))
+    net = pcap_analisis(path)
     
-    for dis in info:
-        print(dis)
-
-    
+    #desplegas la informacion
+    net_analisis(net)
 
 def network_conversation(packet):    
   try:
@@ -48,10 +41,11 @@ def network_conversation(packet):
   except AttributeError as e:
     pass
   
-def net_analisis(path):
+def pcap_analisis(path):
     #path = "/home/c0t0rrr0/Documents/investigacion/dataset/captures_IoT-Sentinel/Aria/Setup-A-5-STA.pcap"
     capture = pyshark.FileCapture(path)
-    dev = []
+    dev = defaultdict(list)
+    #dev = []
     ips = []
     for pkt in capture:
         try:
@@ -65,45 +59,53 @@ def net_analisis(path):
                 ips.append(ip_s)
             
             #busca el puerto destino que hay en el paquete
+            port_s = pkt[pkt.transport_layer].srcport
             port_d = pkt[pkt.transport_layer].dstport
 
-            #para poder seguir el ip
-            ip_s_index = None  
-            
-            #segun el port que se encuentra matchas con el ip en dev
-            #buscas el indice dentro de dev
-            #si el index es none, eso implica que no se pudo
-            #parear el ip que se esta viendo con un ip en la lista
-            for i, ip in enumerate(dev):
-                #si el ip en dev matchea con el ip del paquete que se esta viendo
-                if ip[0] == ip_s:
-                    ip_s_index = i
-            
-            if ip_s_index is not None:
-                #si no esta el puerto 
-                if port_d not in dev[ip_s_index][2]:                        
-                    dev[ip_s_index][2].append(port_d)   
-            #index = none
+            #si es un diccionario no necesito buscar el indice usando un for
+            l_dest = []
+            if ip_s in dev:
+                #si no esta el puerto
+                # print("port",port_d)
+                # print(f"ip:{ip_s}, puerto:{dev[ip_s][1]}")
+                if port_d not in dev[ip_s][1]:
+                    #append el port al ip correspondiente
+                    dev[ip_s][1].append(port_d)
+
             else:
-                dev.append([ip_s, mac, [port_d]])
+                l_dest.append(port_d)
+                dev[ip_s] = [mac, l_dest]
 
         except AttributeError as e:
             pass
     #print("info: ", dev)
     return dev
-    
+
+def net_analisis(net):
+
+    info = []
+    for ip,flow in net.items():
+        encontrado, vendor = find_vendor(flow[0])
+        if encontrado:
+            info.append((ip,flow[0],vendor,flow[1]))
+
+    print("\n<<<INFORMACIO>>>")
+    for dev in info:
+        print(f"IP:{dev[0]}, MAC:{dev[1]}, {dev[2]}")
+        print("puertos a los que se conecto:", dev[3],"\n")
+
 
 def find_vendor(mac_addr):  
     #print(mac_addr)
     byte = mac_addr.split(":")
-    print("mac descompuesto: ", byte)
+    #print("mac descompuesto: ", byte)
 
     #https://www.mist.com/get-to-know-mac-address-randomization-in-2020/
     if byte[0][1] != '2' and byte[0][1] != '6' and byte[0][1] != 'a' and byte[0][1] !=  'e': 
         try:
-            print("El vendor del dispositivo es:")
+            #print("El vendor del dispositivo es:")
             vendor = mac.lookup(mac_addr)
-            print(f"--->:{vendor}\n" )
+            #print(f"--->:{vendor}\n" )
             return True, vendor
         except:
             print("ERROR: mac_vendor_lookup.VendorNotFoundError")
