@@ -4,7 +4,7 @@ from alive_progress import alive_bar
 import scapy.all as scapy
 from mac_vendor_lookup import MacLookup
 #from scapy.all import IP, TCP, ICMP, srp1, Ether, sr, sr1
-
+mac = MacLookup()
 def main():
     src_ip = input("Ingrese un Ip: ")
     ips = hard_scanner(src_ip)
@@ -12,6 +12,8 @@ def main():
     #print(ips)
     find_mac(ips)
 
+    #comienza a analizar la red 
+    #analisis()
 
     print("F.D.P")
 
@@ -20,19 +22,31 @@ def hard_scanner(src_ip):
     print(f"Haciendo scaning del network <{network}>")
 
     #el timpo de la barra de progreso depende de el netmask
-    #/24 = 244
+    #/24 = 254
+    #/16 = 65,534
+    #/8 = 16,777,214
     with alive_bar(254) as progreso:
         ips_actv = []
         for grb in network:
             # Ignore e.g. xxx.xxx.xxx.0 and xxx.xxx.xxx.255
             if grb == network.broadcast_address or grb == network.network_address: continue
 
-            #se crea el paquete para saber si el device esta activo2
             ip = str(grb)
+            #opcion 1
+            #se crea y se envia un paquet atraves de ICMP
+            #para saber si el device esta activo, 
+            #red IP más amplia y desea una verificación más general 
             pkt = scapy.Ether()/scapy.IP(dst = ip)/scapy.ICMP()
             res = scapy.srp1(pkt, timeout = 3, verbose = False)
 
-            if res: ips_actv.append(ip)
+            #opcion2 
+            #utiliza el protocolo ARP, es usado en network locales
+            arp_request = scapy.ARP(pdst=ip)
+            broadcast = scapy.Ether(dst="ff:ff:ff:ff:ff:ff")
+            arp_request_broadcast = broadcast / arp_request
+            answ = scapy.srp(arp_request_broadcast, timeout=1, verbose=False)[0]
+
+            if answ: ips_actv.append(ip)
                 # mac_addr = scapy.getmacbyip(ip)
                 # print(f"{ip, mac_addr}: esta activo")
                
@@ -47,13 +61,16 @@ def find_mac(ips):
         all_mac.append(mac)
 
     #print(all_mac)
-
     #lst_byte es una lista de lista
     lst_byte = []
+    #crear un try expet para cuando no tenga MAC
     for mac in all_mac:
         #i es un str, de len = 17 
+        if mac == None:
+            continue
         list_i = mac.split(":")
         lst_byte.append(list_i)
+        print("cont")
 
     print("mac descompuesto: ", lst_byte)
 
@@ -84,6 +101,18 @@ def find_vendor(mac_address):
     except:
         print("ERROR: mac_vendor_lookup.VendorNotFoundError")
 
+'''
+def analisis():
+    sp.sniff(store=False, prn=packet_callback)
+
+def paquetes():
+    if packet.haslayer(sp.IP):
+        src_ip = packet[sp.IP].src
+        dst_ip = packet[sp.IP].dst
+        protocol = packet[sp.IP].proto
+
+        print(f"Source IP: {src_ip} | Destination IP: {dst_ip} | Protocol: {protocol}")
+'''
 
 if __name__ == "__main__":
     main()

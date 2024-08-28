@@ -6,6 +6,8 @@ from mac_vendor_lookup import MacLookup
 mac = MacLookup()
 
 def main():
+    #flujo_manipulado_cam_kasa y flujo_sin_manipular_cam_kasa son los flujos usando airmon
+
     #path = "/home/c0t0rrr0/Documents/investigacion/dataset/captures_IoT-Sentinel/Aria/Setup-A-5-STA.pcap"
     path = sys.argv[1]
     
@@ -45,17 +47,26 @@ def pcap_analisis(path):
     #path = "/home/c0t0rrr0/Documents/investigacion/dataset/captures_IoT-Sentinel/Aria/Setup-A-5-STA.pcap"
     capture = pyshark.FileCapture(path)
     dev = defaultdict(list)
-    #dev = []
+    
     ips = []
+    idontknow = ""
     for pkt in capture:
         try:
+            
             #busca el ip destino que hay en el paquete
+            #print(str(pkt.layers))
             ip_s = pkt.ip.src
             #para poder buscar los mac addres por ip
             if ip_s not in ips:
+                print("ip: ",ip_s)
                 #verifica si el paquete tiene un campo ethernet
                 if "eth" in pkt:
                     mac = pkt.eth.src
+                else:
+                    print("ERROR")
+                    print("mac?",pkt['wlan'].get_field_value('bssid'))
+                    mac = "hola"
+
                 ips.append(ip_s)
             
             #busca el puerto destino que hay en el paquete
@@ -78,7 +89,7 @@ def pcap_analisis(path):
 
         except AttributeError as e:
             pass
-    #print("info: ", dev)
+    print("info: ", dev)
     return dev
 
 def net_analisis(net):
@@ -113,10 +124,13 @@ def find_vendor(mac_addr):
             #para darle update y ver si se logra conseguir el vendor
             mac.update_vendors()    
             print("puede volver a cargar el programa...")
+            return False, None
     else:   
         print(f"el {mac_addr} posiblemente usa mac randomization")
         print("es posible que sea un celular, tableta o computadora personal")
         print("o su OS sea IOS, Android o Windows")
+
+        return False, None
 
     
 
